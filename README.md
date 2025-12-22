@@ -4,5 +4,6 @@
 
 ## Trabalho 2
 chmod +x run_p2p_kde.sh
+
 ./run_p2p.sh
 
