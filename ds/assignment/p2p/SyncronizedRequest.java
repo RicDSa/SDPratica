@@ -23,6 +23,8 @@ public class SyncronizedRequest implements Runnable {
     private String destinationHost;
     private PeerConnection vizinhosInfo;
 
+    Server server;
+
 
     public SyncronizedRequest(String host, int localport, PeerConnection vizinhosInfo, Logger logger, Server server){
         this.host = host;
@@ -71,16 +73,16 @@ public class SyncronizedRequest implements Runnable {
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // 1. Enviar o meu valor atual
+            // 1. Envia o meu valor atual
             double meuValor = server.getValue();
             out.println("SYNC:" + meuValor);
 
-            // 2. Ler o valor do vizinho
+            // 2. Lê o valor do vizinho
             String response = in.readLine(); // Espera algo como "VAL:0.5"
             if (response != null && response.startsWith("VAL:")) {
                 double vizinhoValor = Double.parseDouble(response.split(":")[1]);
         
-                // 3. Atualizar o meu valor (Média)
+                // 3. Atualiza o meu valor (Média)
                 server.updateValue(vizinhoValor);
             }
 

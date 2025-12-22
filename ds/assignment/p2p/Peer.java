@@ -58,14 +58,14 @@ public class Peer {
 
 		// Create Peer Connection
 		PeerConnection vizinhosInfo = new PeerConnection();
-		for(int i = 2; i < args.length; i+=2){
+		for(int i = 2; i < args.length - 1; i+=2){
 			peer.logger.info("novo vizinho "+ args[i] + " @" +args[i+1]);
 			vizinhosInfo.addVizinho(Integer.parseInt(args[i+1]), args[i]);
 		}
 
 		double valorInicial = Double.parseDouble(args[args.length - 1]);
 
-		Server server = new Server(args[0], Integer.parseInt(args[1]), vizinhosInfo, peer.logger, valorInicial);
+		Server server = new Server(args[0], Integer.parseInt(args[1]), peer.logger, valorInicial);
 		new Thread(server).start();
 
 		SyncronizedRequest syncronizedRequest = new SyncronizedRequest(peer.host, peer.port, vizinhosInfo, peer.logger, server);
@@ -82,21 +82,17 @@ class Server implements Runnable {
     Logger  	logger;
 	double myValue;
 
-	Map<String, Long> data;
-
 	//Atributo dos peers que queremos sincronizar
-	PeerConnection vizinhosInfo;
 	String nexthost;
 	int nextport;
 
     
-    public Server(String host, int port, PeerConnection vizinhosInfo, Logger logger, double initialValue) throws Exception {
+    public Server(String host, int port, Logger logger, double initialValue) throws Exception {
 		this.host   = host;
 		this.port   = port;
-		this.vizinhosInfo = vizinhosInfo;
 		this.logger = logger;
 		this.myValue = initialValue;
-        server = new ServerSocket(port, 1, InetAddress.getByName(host));
+        this.server = new ServerSocket(port, 1, InetAddress.getByName(host));
     }
 
     @Override
@@ -106,67 +102,33 @@ class Server implements Runnable {
 	    while(true) {
 			try {
 				Socket client = server.accept();
-				String clientAddress = client.getInetAddress().getHostAddress();
+                    
+                BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                PrintWriter out = new PrintWriter(client.getOutputStream(), true);
 
-				BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-				String request = in.readLine();
+                String request = in.readLine();
 
-				synchronized (data){
+                    if (request != null && request.startsWith("SYNC:")) {
+                        double vizinhoValor = Double.parseDouble(request.split(":")[1]);
 
-					if(isSyncronizationRequest(request)){
-						int senderPort = getOriginPort(request);
+                        // 1. Responder com o meu valor ATUAL (antes da média)
+                        //    Usamos synchronized block para garantir que lemos o valor correto
+                        double valorParaEnviar;
+                        synchronized(this) {
+                            valorParaEnviar = this.myValue;
+                        }
+                        out.println("VAL:" + valorParaEnviar);
 
-						logger.info("Server: recebeu o request de sincronizacao de " + clientAddress + " @"+ senderPort);
-
-						// Updates the Info of peer that we are going to send data set
-						// for syncronization
-						nexthost = getOriginHost(request);
-						nextport = getOriginPort(request);
-
-						//Envia o conjunto de dados local para o peer vizinho (antes do merge)
-						sendData(data);
-					}
-					// If this peer is the one receiving the syncronization response 
-					// that includes the sender's Set 
-					else if(isMessageForThisPeer(request)){ 
-
-						if(!request.contains("[]")){
-							Set<Integer> resultSet = parseSetFromString(request);
-							if(!resultSet.equals(data)){
-								//guarda o conjunto de dados antes do merge
-								dataBeforeMerge = new HashSet<>(data);
-
-								// Updates the Info of peer that we are going to send data set
-								// for syncronization
-								nexthost = getOriginHost(request);
-								nextport = getOriginPort(request);
-
-								data = mergeSet(resultSet, data);
-
-								// Sort data set (Ajuda na visualização)
-								List<Integer> sortedData = new ArrayList<>(data);
-								Collections.sort(sortedData);
-
-								logger.info("Server: @" + port + " Conjunto local depois do MERGE: " + sortedData);
-
-								updateSenderPeer = true;
-							} 
-						}
-					}
-				}
-
-				// para alcançar o mesmo conjunto depois da sincronização entre peer's
-				if(updateSenderPeer){
-					synchronized(data){
-						//Eniva os dados antes do Merge para poupar bandwith 
-						sendData(dataBeforeMerge);
-					}
-
-				}
+                        // 2. Atualizar o meu valor
+                        updateValue(vizinhoValor);
+                    }
+                    
+                    client.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 				
-				}catch(Exception e) {
-					e.printStackTrace();
-				}    
+   
 	    	}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -178,9 +140,9 @@ class Server implements Runnable {
 	}
 
 	public synchronized void updateValue(double receivedValue) {
-		// A fórmula de agregação: média entre o local e o vizinho
+		// Média entre o local e o vizinho
 		this.myValue = (this.myValue + receivedValue) / 2.0;
-		System.out.println("Novo valor agregado: " + this.myValue);
+		System.out.println("Novo valor: " + this.myValue);
 	}
 }
 
