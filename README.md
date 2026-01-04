@@ -14,3 +14,9 @@ No Local onde se encontra a pasta ds correr o comando
 
 ./run_p2p.sh
 
+## Trabalho 3
+chmod +x run_tom.sh
+
+No Local onde se encontra a pasta ds correr o comando
+
+./run_tom.sh
